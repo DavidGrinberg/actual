@@ -825,6 +825,61 @@ describe('Transaction rules', () => {
     expect(transactions.map(t => t.id)).toEqual(['2']);
   });
 
+  test('date isbetween builds an inclusive range condition', () => {
+    const { filters } = conditionsToAQL([
+      {
+        field: 'date',
+        op: 'isbetween',
+        value: { num1: '2020-10-05', num2: '2020-10-15' },
+      },
+    ]);
+    expect(filters).toStrictEqual([
+      { date: [{ $gte: '2020-10-05' }, { $lte: '2020-10-15' }] },
+    ]);
+
+    // The bounds may be given in either order
+    const { filters: reversed } = conditionsToAQL([
+      {
+        field: 'date',
+        op: 'isbetween',
+        value: { num1: '2020-10-15', num2: '2020-10-05' },
+      },
+    ]);
+    expect(reversed).toStrictEqual(filters);
+  });
+
+  test('transactions can be queried by a date range', async () => {
+    await loadRules();
+    const account = await db.insertAccount({ name: 'bank' });
+    const payeeId = await db.insertPayee({ name: 'payee' });
+
+    for (const [id, date] of [
+      ['1', '2020-10-04'],
+      ['2', '2020-10-05'],
+      ['3', '2020-10-10'],
+      ['4', '2020-10-15'],
+      ['5', '2020-10-16'],
+    ]) {
+      await db.insertTransaction({
+        id,
+        date,
+        account,
+        payee: payeeId,
+        amount: 1,
+      });
+    }
+
+    // Both bounds are inclusive
+    const transactions = await getMatchingTransactions([
+      {
+        field: 'date',
+        op: 'isbetween',
+        value: { num1: '2020-10-05', num2: '2020-10-15' },
+      },
+    ]);
+    expect(transactions.map(t => t.id).sort()).toEqual(['2', '3', '4']);
+  });
+
   test('and sub expression builds $and condition', async () => {
     const conds = [{ field: 'category', op: 'is', value: null }];
     const { filters } = conditionsToAQL(conds);

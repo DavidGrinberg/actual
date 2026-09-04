@@ -602,7 +602,7 @@ export function conditionsToAQL(
 
       case 'isbetween':
         // This operator is only applicable to the specific `between`
-        // number type so we don't use `apply`
+        // number and date types so we don't use `apply`
         const [low, high] = sortNumbers(value.num1, value.num2);
         return {
           [field]: [{ $gte: low }, { $lte: high }],
