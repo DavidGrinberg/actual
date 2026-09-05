@@ -45,7 +45,7 @@ import {
   getShortYearRegex,
 } from '@actual-app/core/shared/months';
 import { css } from '@emotion/css';
-import { CalendarDate } from '@internationalized/date';
+import { CalendarDate, isSameMonth } from '@internationalized/date';
 import { addDays, format, isValid, parse, parseISO, subDays } from 'date-fns';
 
 import { LabeledCheckbox } from '#components/forms/LabeledCheckbox';
@@ -140,6 +140,41 @@ const pickerStyles: CSSProperties = {
   },
 };
 
+type OutsideMonthCellProps = {
+  date: CalendarDate;
+  dateFormatter: Intl.DateTimeFormat;
+  onSelect: (selectedDate: Date) => void;
+};
+
+/**
+ * A day from the previous or next month. react-aria forces such cells disabled
+ * (`useCalendarCell`: `isDisabled ||= isOutsideMonth`) with no way to opt out,
+ * so they get their own cell here to stay selectable. Mirrors what
+ * `CalendarCell` renders, minus the press handling it withholds.
+ */
+function OutsideMonthCell({
+  date,
+  dateFormatter,
+  onSelect,
+}: OutsideMonthCellProps) {
+  const jsDate = fromCalendarDate(date);
+
+  return (
+    <td>
+      <div
+        role="button"
+        tabIndex={-1}
+        className="react-aria-CalendarCell"
+        data-outside-month
+        aria-label={dateFormatter.format(jsDate)}
+        onClick={() => onSelect(jsDate)}
+      >
+        {date.day}
+      </div>
+    </td>
+  );
+}
+
 type DatePickerProps = {
   value: string;
   dateFormat: string;
@@ -184,6 +219,14 @@ const DatePicker = forwardRef<DatePickerForwardedRef, DatePickerProps>(
       setPrevFocusedKey(focusedKey);
       setFocusedDate(focusedCalendarDate);
     }
+
+    // Same shape of label react-aria gives its own cells.
+    const outsideMonthLabelFormatter = new Intl.DateTimeFormat(locale, {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
 
     useImperativeHandle(
       ref,
@@ -281,7 +324,17 @@ const DatePicker = forwardRef<DatePickerForwardedRef, DatePickerProps>(
                 )}
               </CalendarGridHeader>
               <CalendarGridBody>
-                {date => <CalendarCell date={date} />}
+                {date =>
+                  isSameMonth(date, focusedDate) ? (
+                    <CalendarCell date={date} />
+                  ) : (
+                    <OutsideMonthCell
+                      date={date}
+                      dateFormatter={outsideMonthLabelFormatter}
+                      onSelect={onSelect}
+                    />
+                  )
+                }
               </CalendarGridBody>
             </CalendarGrid>
           </Calendar>
